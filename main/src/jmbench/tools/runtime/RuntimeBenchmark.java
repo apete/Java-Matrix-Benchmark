@@ -63,8 +63,10 @@ public class RuntimeBenchmark {
 
         long startTime = System.currentTimeMillis();
         processLibraries(config.getTargets(),config);
+        long elapsedTime = System.currentTimeMillis()-startTime;
+        System.out.println("Elapsed time "+MiscTools.milliToHuman(elapsedTime)+"\n");
 
-        System.out.println("Elapsed time "+MiscTools.milliToHuman(System.currentTimeMillis()-startTime)+"\n");
+        MiscTools.sendFinishedEmail("Runtime",startTime);
     }
 
     private void processLibraries( List<LibraryDescription> libs, RuntimeBenchmarkConfig config ) {
@@ -137,15 +139,15 @@ public class RuntimeBenchmark {
         System.out.println("  --MinTestTime=<ms>        |  The minimum amount of time spent in a single test.  Typical is 3000 ms.");
         System.out.println("  --MaxTestTime=<time|unit> |  "+MiscTools.stringTimeArgumentHelp());
         System.out.println("  --Resume=<directory>      |  It will resume an unfinished benchmark at the specified directory.");
-        System.out.println("  --Memory=<MB>             |  Sets the amount of memory allocated to java for each trial in megabytes.  This number should be");
+        System.out.println("  --Memory=<size|unit>      |  Sets the amount of memory allocated.  Default is MB. Recognizes suffixes for m,mb,g,gb,b.");
         System.out.println("                            |  as large as possible with out exceeding the amount of physical memory on the system.");
         System.out.println("                            |  specified since the dynamic algorithm will slow down the benchmark and has some known issues.");
         System.out.println();
-        System.out.println("The only option which must be specified is \"FixedMemory\".  If no other options are specified " +
+        System.out.println("The only option which must be specified is \"Memory\".  If no other options are specified " +
                 "then a default configuration will be used and the results" +
                 "will be saved to a directory in results with the name of the current system time in milliseconds.");
         System.out.println();
-        System.out.println("Example: java -jar benchmark.jar runtime --Size=2:40000 --MaxTime=10m --Memory=25600");
+        System.out.println("Example: java -jar benchmark.jar runtime --Size=2:40000 --MaxTime=120m --Memory=25g");
     }
 
     public static void main( String args[] ) {
@@ -238,7 +240,7 @@ public class RuntimeBenchmark {
             } else if( flag.compareTo("Memory") == 0 ) {
                 if( splits.length != 2 ) {failed = true; break;}
                 memorySpecified = true;
-                config.memoryMB = Integer.parseInt(splits[1]);
+                config.memoryMB = (int)MiscTools.parseMemoryMB(splits[1]);
                 if( config.memoryMB <= 0 )
                     System.out.println("Memory must be set to a value greater than zero");
                 else

@@ -45,6 +45,9 @@ public class JavaRuntimeLauncher {
     // save for future debugging
     private String[] jvmArgs;
 
+    // optional message which describes the task being performed
+    private String messageTask = "";
+
     /**
      * Constructor.  Configures which library it is to be launching a class from/related to
      * @param pathJars List of paths to all the jars
@@ -142,10 +145,9 @@ public class JavaRuntimeLauncher {
                 }
             }
 
-            printError(error);
-
+            printToStdOut(error);
             if( input.ready() ) {
-                printInputBuffer(input);
+                printToStdOut(input);
             } else {
                 Thread.sleep(500);
             }
@@ -160,8 +162,24 @@ public class JavaRuntimeLauncher {
 
                 // check to see if the process is frozen
                 if(ellapsedTime > frozenTimeMS) {
-                    pr.destroy(); // kill the process
-                    exit = Exit.FROZEN;
+                    // use destroyForcibly() because it might kill the child subprocess too
+                    // not that isn't ensured
+                    long giveUpTime = System.currentTimeMillis()+20_000;
+                    boolean success = false;
+                    while( System.currentTimeMillis() < giveUpTime && !success ) {
+                        if( !pr.destroyForcibly().isAlive() ) {
+                            success = true;
+                        } else {
+                            printToStdOut(error);
+                            printToStdOut(input);
+                            Thread.sleep(500);
+                        }
+                    }
+
+                    if( success )
+                        exit = Exit.FROZEN;
+                    else
+                        exit = Exit.FROZEN_WILL_NOT_DIE;
                     break;
                 }
 
@@ -169,6 +187,8 @@ public class JavaRuntimeLauncher {
                 if( System.currentTimeMillis() - lastAliveMessage > 300000 ) {
                     int percent = (int)(100*(ellapsedTime/(double) frozenTimeMS));
                     System.out.println("\nMaster is still alive: "+new Date()+"  Press 'q' and enter to quit. "+percent+"%");
+                    if( messageTask != null && messageTask.length() > 0 )
+                        System.out.println(messageTask);
                     lastAliveMessage = System.currentTimeMillis();
                 }
             }
@@ -177,21 +197,11 @@ public class JavaRuntimeLauncher {
         return exit;
     }
 
-    protected void printError(BufferedReader error) throws IOException {
-        while( error.ready() ) {
-            int val = error.read();
-            if( val < 0 ) break;
-
-            System.out.print(Character.toChars(val));
-        }
-    }
-
-    protected void printInputBuffer(BufferedReader input) throws IOException {
-
-        while( input.ready() ) {
-            int val = input.read();
-            if( val < 0 ) break;
-
+    protected void printToStdOut(BufferedReader reader) throws IOException
+    {
+        while( reader.ready() ) {
+            int val = reader.read();
+            if( val <= 0 ) break;
             System.out.print(Character.toChars(val));
         }
     }
@@ -230,6 +240,10 @@ public class JavaRuntimeLauncher {
         return jvmArgs;
     }
 
+    public void setMessageTask(String messageTask) {
+        this.messageTask = messageTask;
+    }
+
     public enum Exit
     {
         /**
@@ -244,5 +258,9 @@ public class JavaRuntimeLauncher {
          * exited with a non zero return value
          */
         RETURN_NOT_ZERO,
+        /**
+         * Can't kill process. Subprocess won't die.
+         */
+        FROZEN_WILL_NOT_DIE
     }
 }
